@@ -1,0 +1,1806 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTET • Cloud Admin Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', 'Noto Sans Devanagari', system-ui, sans-serif; }
+    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .render-multiline { white-space: pre-line; word-break: break-word; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #adminPrintScoreCard, #adminPrintScoreCard * { visibility: visible; }
+      #adminPrintScoreCard {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 20px !important;
+        display: block !important;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col antialiased">
+
+  <!-- Header -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5 cursor-pointer" onclick="openModuleHub()">
+        <span class="p-2 bg-indigo-600 rounded-xl text-lg">⚙️</span>
+        <div>
+          <h1 class="text-base md:text-lg font-bold leading-tight">GTET.com Admin</h1>
+          <p class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5">
+            <span id="cloudStatusDot" class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+            <span id="cloudStatusText">Live Cloud Connected</span>
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="refreshAllFromCloud(true)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 border border-slate-700">
+          <span>🔄 Sync Cloud</span>
+        </button>
+        <a href="Indexi.html" target="_blank" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow">
+          <span>Student App</span> <span>↗</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Toast Notification Banner -->
+  <div id="liveAlertBanner" class="hidden fixed bottom-5 right-5 z-50 max-w-sm bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-indigo-500 flex items-start gap-3 transition-all duration-300 transform translate-y-0">
+    <span class="text-2xl">🔔</span>
+    <div class="flex-1 text-xs">
+      <b class="text-indigo-400 block text-sm mb-0.5" id="liveAlertTitle">New Student Activity!</b>
+      <p id="liveAlertMsg" class="text-slate-300">Ek naya score upload hua hai.</p>
+    </div>
+    <button onclick="closeLiveAlert()" class="text-slate-400 hover:text-white font-bold leading-none">✕</button>
+  </div>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl w-full mx-auto px-4 py-5 space-y-5 flex-1">
+
+    <!-- Overview Stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-500 block">Active Subjects</span>
+        <b id="statSubjectCount" class="text-xl font-black text-slate-800">0</b>
+      </div>
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-500 block">Total Chapters</span>
+        <b id="statChapterCount" class="text-xl font-black text-slate-800">0</b>
+      </div>
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-500 block">Questions Bank</span>
+        <b id="statQuesCount" class="text-xl font-black text-emerald-600">0</b>
+      </div>
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+        <span class="text-xs text-slate-500 block">PDF Notes</span>
+        <b id="statNotesCount" class="text-xl font-black text-amber-600">0</b>
+      </div>
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm col-span-2 sm:col-span-1">
+        <span class="text-xs text-slate-500 block">Completed Tests</span>
+        <b id="statCompletedTestsCount" class="text-xl font-black text-indigo-600">0</b>
+      </div>
+    </div>
+
+    <!-- MODULES HUB -->
+    <section id="moduleHub" class="space-y-4">
+      <div class="border-b border-slate-200 pb-2 flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-bold text-slate-800">Admin Control Modules</h2>
+          <p class="text-xs text-slate-500">App aur Admin ka sara data cloud se synchronized hai</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Module 1: Upload Question -->
+        <div onclick="openWorkspace('tabAddQ')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">➕</div>
+            <h3 class="font-bold text-slate-800 text-sm">Upload Question</h3>
+            <p class="text-xs text-slate-500 mt-1">Mock Set, PYQ ya Chapter me single sawal dalein with Custom Timer support.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-indigo-600">
+            <span>Add Question</span> <span>→</span>
+          </div>
+        </div>
+
+        <!-- Module 2: Auto Parse Exam Questions -->
+        <div onclick="openWorkspace('tabPdfParser')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">⚡</div>
+            <h3 class="font-bold text-slate-800 text-sm">Auto Parse Exam Questions</h3>
+            <p class="text-xs text-slate-500 mt-1">Full papers, sets ya chapter wise bulk raw text ko automatic questions me convert karein.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600">
+            <span>Auto Parse</span> <span>→</span>
+          </div>
+        </div>
+
+        <!-- Module 3: Manage Question Bank -->
+        <div onclick="openWorkspace('tabManageQ')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-slate-100 text-slate-700 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">📋</div>
+            <h3 class="font-bold text-slate-800 text-sm">Manage Questions</h3>
+            <p class="text-xs text-slate-500 mt-1">Sets, PYQ aur Chapters ke sawal cloud database se search, view ya remove karein.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700">
+            <span>Questions Bank (<span id="hubQCount">0</span>)</span> <span>→</span>
+          </div>
+        </div>
+
+        <!-- Module 4: Student Profile Management -->
+        <div onclick="openWorkspace('tabProfileManagement')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-violet-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-violet-50 text-violet-600 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">👤</div>
+            <h3 class="font-bold text-slate-800 text-sm">Student Profile & Scores</h3>
+            <p class="text-xs text-slate-500 mt-1">App me student jo profile aur marks upload karega wo yahan real-time live dikhega.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-violet-600">
+            <span>View Live Profile</span> <span>→</span>
+          </div>
+        </div>
+
+        <!-- Module 5: Score Cards & Single-Page PDF -->
+        <div onclick="openWorkspace('tabStudentRecords')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">🎓</div>
+            <h3 class="font-bold text-slate-800 text-sm">Download Score Card (PDF)</h3>
+            <p class="text-xs text-slate-500 mt-1">Student ke completed tests ki verified marksheet download aur print karein.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-emerald-600">
+            <span>Score Cards</span> <span>→</span>
+          </div>
+        </div>
+
+        <!-- Module 6: Manage PDF Notes -->
+        <div onclick="openWorkspace('tabManageNotes')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-amber-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">📑</div>
+            <h3 class="font-bold text-slate-800 text-sm">Manage PDF Notes</h3>
+            <p class="text-xs text-slate-500 mt-1">Chapter select karein aur Google Drive PDF link dalein, direct app me student ko dikhega.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-amber-600">
+            <span>Manage Notes</span> <span>→</span>
+          </div>
+        </div>
+
+        <!-- Module 7: Manage Subjects -->
+        <div onclick="openWorkspace('tabAddSubject')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-purple-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">📚</div>
+            <h3 class="font-bold text-slate-800 text-sm">Manage Subjects</h3>
+            <p class="text-xs text-slate-500 mt-1">Naye subjects add karein ya unhe enable/disable karein.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-purple-600">
+            <span>Manage Subjects</span> <span>→</span>
+          </div>
+        </div>
+
+        <!-- Module 8: Manage Chapters & Custom Classes -->
+        <div onclick="openWorkspace('tabAddChapter')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-rose-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between group">
+          <div>
+            <div class="w-11 h-11 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition">📖</div>
+            <h3 class="font-bold text-slate-800 text-sm">Manage Chapters & Classes</h3>
+            <p class="text-xs text-slate-500 mt-1">Class me 6, 7, 8... 12 ya custom class ke chapters banayein aur delete karein.</p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-rose-600">
+            <span>Manage Chapters</span> <span>→</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION TITLE BAR -->
+    <div id="workspaceHeader" class="hidden flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+      <button onclick="openModuleHub()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition">
+        <span>←</span> <span>Back to Modules</span>
+      </button>
+      <span id="activeWorkspaceTitle" class="text-xs font-bold text-slate-700"></span>
+    </div>
+
+    <!-- 1. UPLOAD QUESTION TAB -->
+    <section id="tabAddQ" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div class="border-b border-slate-100 pb-3">
+        <h2 class="text-base font-bold text-slate-800">Upload Question (Set / PYQ / Chapter)</h2>
+        <p class="text-xs text-slate-500">Chunein ki sawal Full Mock Set, PYQ Paper ya specific Chapter test me dalna hai.</p>
+      </div>
+
+      <form id="formAddQuestion" onsubmit="handleSaveQuestion(event)" class="space-y-4">
+        <div class="bg-indigo-50/70 p-4 rounded-xl border border-indigo-200">
+          <label class="block text-xs font-bold text-indigo-900 mb-1.5">Destination *</label>
+          <select id="qDestinationType" onchange="toggleDestinationFields()" class="w-full p-2.5 bg-white border border-indigo-300 rounded-xl text-xs font-bold text-indigo-950 focus:ring-2 focus:ring-indigo-500">
+            <option value="set">Full Mock Set (Set 1 to Set 10)</option>
+            <option value="pyq">Previous Year Question Paper (PYQ 2021 – 2026)</option>
+            <option value="chapter">Chapter Wise Practice Test</option>
+          </select>
+        </div>
+
+        <div id="fieldChapterGroup" class="hidden bg-indigo-50/40 p-4 rounded-xl border border-indigo-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Select Subject *</label>
+            <select id="qSubject" onchange="updateUploadClassDropdown()" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Select Class *</label>
+            <select id="qClass" onchange="updateUploadChapterDropdown()" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Select Chapter *</label>
+            <select id="qChapter" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold"></select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div id="fieldSetSelect">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Mock Set Number *</label>
+            <select id="qMockSetNum" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+              <option value="1">Full Mock Test - Set 1</option>
+              <option value="2">Full Mock Test - Set 2</option>
+              <option value="3">Full Mock Test - Set 3</option>
+              <option value="4">Full Mock Test - Set 4</option>
+              <option value="5">Full Mock Test - Set 5</option>
+              <option value="6">Full Mock Test - Set 6</option>
+              <option value="7">Full Mock Test - Set 7</option>
+              <option value="8">Full Mock Test - Set 8</option>
+              <option value="9">Full Mock Test - Set 9</option>
+              <option value="10">Full Mock Test - Set 10</option>
+            </select>
+          </div>
+
+          <div id="fieldPyqSelect" class="hidden">
+            <label class="block text-xs font-bold text-slate-700 mb-1">PYQ Exam Year *</label>
+            <select id="qPyqYear" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+              <option value="2021">CTET Paper 2 - 2021</option>
+              <option value="2022">CTET Paper 2 - 2022</option>
+              <option value="2023">CTET Paper 2 - 2023</option>
+              <option value="2024">CTET Paper 2 - 2024</option>
+              <option value="2025">CTET Paper 2 - 2025</option>
+              <option value="2026">CTET Paper 2 - 2026</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Test Duration / Timer (in Minutes) *</label>
+            <input type="number" id="qCustomTimer" required min="1" max="180" value="25" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500">
+            <p class="text-[10px] text-slate-400 mt-0.5">Admin jo timer yahan set karega, app me student ko wahi timer milega.</p>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Question & Statements *</label>
+          <textarea id="qText" rows="5" required placeholder="Question yahan paste karein..." class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Option (A) *</label>
+            <textarea id="qOptA" rows="2" required placeholder="Option A" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Option (B) *</label>
+            <textarea id="qOptB" rows="2" required placeholder="Option B" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Option (C) *</label>
+            <textarea id="qOptC" rows="2" required placeholder="Option C" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Option (D) *</label>
+            <textarea id="qOptD" rows="2" required placeholder="Option D" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium"></textarea>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-emerald-700 mb-1">Correct Answer *</label>
+            <select id="qCorrect" class="w-full p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900">
+              <option value="0">Option (A) is Correct</option>
+              <option value="1">Option (B) is Correct</option>
+              <option value="2">Option (C) is Correct</option>
+              <option value="3">Option (D) is Correct</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Detailed Explanation *</label>
+            <textarea id="qExplanation" rows="2" placeholder="Vyakhya yahan likhein..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium"></textarea>
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end">
+          <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5">
+            <span>💾 Save to Cloud</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 2. AUTO PARSE EXAM QUESTIONS TAB -->
+    <section id="tabPdfParser" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div class="border-b border-slate-100 pb-3">
+        <h2 class="text-base font-bold text-slate-800">⚡ Auto Parse Exam Questions</h2>
+        <p class="text-xs text-slate-500">Pure paper ya practice text ko ek sath paste karke parse karein.</p>
+      </div>
+
+      <div class="bg-indigo-50/70 p-4 rounded-xl border border-indigo-200 space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-indigo-900 mb-1">Target Destination *</label>
+            <select id="parseDestinationType" onchange="toggleParseDest()" class="w-full p-2.5 bg-white border border-indigo-300 rounded-lg text-xs font-bold">
+              <option value="set">Full Mock Set</option>
+              <option value="pyq">PYQ Year</option>
+              <option value="chapter">Chapter Wise Practice Test</option>
+            </select>
+          </div>
+
+          <div id="parseMockBox">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Mock Set</label>
+            <select id="parseMockSetNum" class="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+              <option value="1">Set 1</option>
+              <option value="2">Set 2</option>
+              <option value="3">Set 3</option>
+              <option value="4">Set 4</option>
+              <option value="5">Set 5</option>
+              <option value="6">Set 6</option>
+              <option value="7">Set 7</option>
+              <option value="8">Set 8</option>
+              <option value="9">Set 9</option>
+              <option value="10">Set 10</option>
+            </select>
+          </div>
+
+          <div id="parsePyqBox" class="hidden">
+            <label class="block text-xs font-bold text-slate-700 mb-1">PYQ Year</label>
+            <select id="parsePyqYear" class="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+              <option value="2021">2021</option>
+              <option value="2022">2022</option>
+              <option value="2023">2023</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Timer (Minutes)</label>
+            <input type="number" id="parseTimerMinutes" value="25" min="1" max="180" class="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-indigo-900">
+          </div>
+        </div>
+
+        <div id="parseChapterGroup" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-indigo-200">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Select Subject *</label>
+            <select id="parseSubject" onchange="updateParseClassDropdown()" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Select Class *</label>
+            <select id="parseClass" onchange="updateParseChapterDropdown()" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Select Chapter *</label>
+            <select id="parseChapter" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"></select>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">Raw Exam Question Text:</label>
+        <textarea id="rawPdfTextInput" rows="8" placeholder="1. क्वेश्चन टेक्स्ट...
+(A) ऑप्शन 1
+(B) ऑप्शन 2
+(C) ऑप्शन 3
+(D) ऑप्शन 4
+Ans: C
+Exp: NCERT Reference..." class="w-full p-3 font-mono bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"></textarea>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <button onclick="handleParseRawText()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5">
+          <span>🔍</span> <span>Parse Text</span>
+        </button>
+        <span id="parsedSummaryText" class="text-xs font-bold text-emerald-700"></span>
+      </div>
+
+      <div id="parsedPreviewSection" class="hidden space-y-3 pt-3 border-t border-slate-200">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold text-slate-800">Parsed Preview</h3>
+          <button onclick="uploadParsedQuestions()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition">
+            🚀 Save to Cloud
+          </button>
+        </div>
+        <div id="parsedCardsContainer" class="space-y-2.5 max-h-80 overflow-y-auto custom-scroll pr-1"></div>
+      </div>
+    </section>
+
+    <!-- 3. STUDENT PROFILE & HISTORY MANAGEMENT (LIVE FIREBASE SYNC) -->
+    <section id="tabProfileManagement" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-800">👤 Student Live Profile & Scores</h2>
+            <p class="text-xs text-slate-500">Student jo v app me fill ya submit karega wo yahan real-time live dikhega.</p>
+          </div>
+          <button onclick="syncStudentActivityFromCloud(true)" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition">
+            🔄 Refresh From Cloud
+          </button>
+        </div>
+
+        <div id="adminStudentProfileCard" class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center gap-4">
+          <div class="w-16 h-16 rounded-full overflow-hidden bg-indigo-100 border-2 border-indigo-500 flex items-center justify-center shrink-0">
+            <img id="adminProfileImg" src="" alt="Profile" class="w-full h-full object-cover hidden">
+            <span id="adminProfileImgPlaceholder" class="text-2xl font-bold text-indigo-700">👤</span>
+          </div>
+          <div class="space-y-0.5 text-xs">
+            <div class="flex items-center gap-2">
+              <h3 id="adminStudentName" class="text-sm font-bold text-slate-900">Not Uploaded Yet</h3>
+              <span id="adminProfileSyncTag" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-600">Waiting for App</span>
+            </div>
+            <p id="adminStudentEmail" class="text-slate-600">Email: —</p>
+            <p id="adminStudentMobile" class="text-slate-600">Mobile: —</p>
+            <p id="adminProfileLastUpdated" class="text-[10px] text-slate-400">Last Synced: —</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-200 space-y-2">
+            <span class="text-xs font-bold text-indigo-900 block border-b border-indigo-200 pb-1">Full Mock Sets Performance</span>
+            <div id="adminSetsHistoryList" class="space-y-1.5 max-h-56 overflow-y-auto custom-scroll text-xs"></div>
+          </div>
+          <div class="bg-purple-50/50 p-3.5 rounded-xl border border-purple-200 space-y-2">
+            <span class="text-xs font-bold text-purple-900 block border-b border-purple-200 pb-1">PYQ Papers Performance</span>
+            <div id="adminPyqHistoryList" class="space-y-1.5 max-h-56 overflow-y-auto custom-scroll text-xs"></div>
+          </div>
+          <div class="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-200 space-y-2">
+            <span class="text-xs font-bold text-emerald-900 block border-b border-emerald-200 pb-1">Chapter Tests Performance</span>
+            <div id="adminChapterHistoryList" class="space-y-1.5 max-h-56 overflow-y-auto custom-scroll text-xs"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. STUDENT SCORE CARDS TAB -->
+    <section id="tabStudentRecords" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-800">🎓 Certified Student Score Cards</h2>
+            <p class="text-xs text-slate-500">Student ke sabhi completed tests ka official certificate generate karein.</p>
+          </div>
+          <button onclick="renderStudentRecords()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition">
+            🔄 Refresh Records
+          </button>
+        </div>
+        <div id="studentRecordsContainer" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- 5. MANAGE PDF NOTES TAB -->
+    <section id="tabManageNotes" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="border-b border-slate-100 pb-3">
+          <h2 class="text-base font-bold text-slate-800">Add Chapter PDF Notes</h2>
+          <p class="text-xs text-slate-500">Subject aur Class select karein, Google Drive embed URL Cloud me direct save hoga.</p>
+        </div>
+
+        <form id="formAddNote" onsubmit="handleSaveNote(event)" class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Subject</label>
+              <select id="noteSubject" onchange="updateNoteClassDropdown()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Class</label>
+              <select id="noteClass" onchange="updateNoteChapterDropdown()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Chapter (Auto-Title Assigned)</label>
+              <select id="noteChapter" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"></select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Google Drive Link / URL *</label>
+            <input type="text" id="notePdfUrl" required placeholder="https://drive.google.com/file/d/.../view" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono">
+          </div>
+
+          <div class="flex justify-end">
+            <button type="submit" class="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow">
+              💾 Save PDF Note to Cloud
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <h3 class="text-sm font-bold text-slate-800">Uploaded Chapter PDF Notes</h3>
+        <div id="notesCardsList" class="space-y-2.5 max-h-[500px] overflow-y-auto custom-scroll pr-1"></div>
+      </div>
+    </section>
+
+    <!-- 6. VIEW & MANAGE QUESTIONS TAB -->
+    <section id="tabManageQ" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-800">All Questions Bank (Cloud Database)</h2>
+          <p class="text-xs text-slate-500">Filter, search, inspect sequence or delete questions.</p>
+        </div>
+        <button onclick="handleDeleteAllQuestions()" class="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold transition">
+          🗑️ Clear All Questions
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <input type="text" id="searchQText" oninput="renderQuestionsList()" placeholder="Search question text..." class="p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs">
+        <select id="filterTargetGroup" onchange="renderQuestionsList()" class="p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+          <option value="all">All Targets (Mock Sets, PYQ & Chapters)</option>
+          <option value="set">Only Mock Sets</option>
+          <option value="pyq">Only PYQ</option>
+          <option value="chapter">Only Chapters</option>
+        </select>
+      </div>
+
+      <div id="questionsContainer" class="space-y-3 max-h-[600px] overflow-y-auto custom-scroll pr-1"></div>
+    </section>
+
+    <!-- 7. MANAGE SUBJECTS TAB -->
+    <section id="tabAddSubject" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="border-b border-slate-100 pb-3">
+          <h2 class="text-base font-bold text-slate-800">Create New Subject</h2>
+          <p class="text-xs text-slate-500">Naye subject add karein, ye turant Firebase Cloud par update hoga.</p>
+        </div>
+
+        <form id="formAddSubject" onsubmit="handleSaveSubject(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Subject Key *</label>
+            <input type="text" id="subKeyInput" required placeholder="Human_Geography" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Display Title *</label>
+            <input type="text" id="subTitleInput" required placeholder="Human Geography (मानव भूगोल)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Icon / Emoji</label>
+            <input type="text" id="subIconInput" required value="🌍" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium">
+          </div>
+          <div class="sm:col-span-4 flex justify-end">
+            <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow">
+              ➕ Add Subject to Cloud
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <h3 class="text-sm font-bold text-slate-800">Master Subject List</h3>
+        <div id="subjectCardsList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+      </div>
+    </section>
+
+    <!-- 8. MANAGE CHAPTERS & CUSTOM CLASSES TAB -->
+    <section id="tabAddChapter" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="border-b border-slate-100 pb-3">
+          <h2 class="text-base font-bold text-slate-800">Add New Chapter / Class</h2>
+          <p class="text-xs text-slate-500">Class me 6, 7, 8... 12 ya <b>Graduation</b> kuch bhi type kar sakte hain.</p>
+        </div>
+
+        <form id="formAddChapter" onsubmit="handleSaveChapter(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Subject *</label>
+            <select id="chapSubjectSelect" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Class / Level *</label>
+            <input type="text" id="chapClassInput" required placeholder="e.g. 9, 10, 11, 12, Graduation" value="6" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Chapter Name *</label>
+            <input type="text" id="chapNameInput" required placeholder="Chapter 1: Nature and Scope" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium">
+          </div>
+          <div class="sm:col-span-4 flex justify-end">
+            <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow">
+              ➕ Add Chapter to Cloud
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <h3 class="text-sm font-bold text-slate-800">Chapter Operations</h3>
+          <div class="flex items-center gap-2">
+            <select id="filterChapSubject" onchange="renderAllChaptersList()" class="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold">
+              <option value="all">All Subjects</option>
+            </select>
+          </div>
+        </div>
+        <div id="allChaptersList" class="space-y-2.5 max-h-[500px] overflow-y-auto custom-scroll pr-1"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PRINT SCORE CARD -->
+  <div id="adminPrintScoreCard" class="hidden bg-white text-slate-900 border-2 border-slate-800 p-6 rounded-xl">
+    <div class="text-center border-b-2 border-indigo-900 pb-3 mb-3">
+      <h1 class="text-xl font-black text-indigo-950 uppercase">CTET SST OFFICIAL SCORE CARD</h1>
+      <p class="text-[11px] font-semibold text-slate-600">Verified Central Exam Control Portal Record</p>
+    </div>
+
+    <div class="flex items-center justify-between gap-4 p-3 bg-slate-50 rounded-xl border border-slate-300 mb-4 text-xs">
+      <div class="flex items-center gap-3">
+        <div class="w-16 h-16 rounded-lg overflow-hidden border border-slate-400 bg-indigo-50 flex items-center justify-center shrink-0">
+          <img id="printCardPhoto" src="" alt="Photo" class="w-full h-full object-cover hidden">
+          <span id="printCardPhotoFallback" class="text-2xl">👤</span>
+        </div>
+        <div class="space-y-0.5">
+          <div><strong>Candidate Name:</strong> <span id="printCardName">—</span></div>
+          <div><strong>Registered Email:</strong> <span id="printCardEmail">—</span></div>
+          <div><strong>Mobile Number:</strong> <span id="printCardMobile">—</span></div>
+        </div>
+      </div>
+      <div class="text-right space-y-0.5">
+        <div><strong>Exam / Test:</strong> <span id="printCardTestTitle" class="text-indigo-900 font-bold">—</span></div>
+        <div><strong>Attempt Date:</strong> <span id="printCardDate">—</span></div>
+        <div><strong>Certificate ID:</strong> #CTET-<span id="printCardId">1001</span></div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-4 gap-2 text-center text-xs mb-4">
+      <div class="p-2.5 border rounded-lg bg-indigo-50 font-bold">Total Marks<br><span id="printCardTotal" class="text-lg text-indigo-700">0</span></div>
+      <div class="p-2.5 border rounded-lg bg-emerald-50 font-bold">Correct<br><span id="printCardCorrect" class="text-lg text-emerald-700">0</span></div>
+      <div class="p-2.5 border rounded-lg bg-rose-50 font-bold">Incorrect<br><span id="printCardWrong" class="text-lg text-rose-700">0</span></div>
+      <div class="p-2.5 border rounded-lg bg-amber-50 font-bold">Accuracy<br><span id="printCardAcc" class="text-lg text-amber-700">0%</span></div>
+    </div>
+
+    <div class="space-y-2 mb-4 text-xs">
+      <h3 class="font-bold text-slate-800 border-b border-slate-300 pb-1">Section-Wise Breakdown</h3>
+      <div class="grid grid-cols-3 gap-2 text-center text-[11px]">
+        <div class="p-2 border rounded bg-indigo-50/60">
+          <b class="block text-indigo-900">MOCK SETS</b>
+          <span id="printCardSetScore">Attempted: 0</span>
+        </div>
+        <div class="p-2 border rounded bg-purple-50/60">
+          <b class="block text-purple-900">PYQ PAPERS</b>
+          <span id="printCardPyqScore">Attempted: 0</span>
+        </div>
+        <div class="p-2 border rounded bg-emerald-50/60">
+          <b class="block text-emerald-900">CHAPTER PRACTICE</b>
+          <span id="printCardChapterScore">Attempted: 0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-3 border-t border-slate-300 flex items-center justify-between text-[10px] text-slate-500">
+      <span>Verified by CTET Exam Control Portal</span>
+      <span>Single-Page Certified Official Document</span>
+    </div>
+  </div>
+
+  <script>
+    const FIREBASE_BASE_URL = 'https://ctet-sst-portal-default-rtdb.firebaseio.com';
+
+    const DEFAULT_APP_DATA = {
+      History: {
+        title: 'History (Our Pasts I, II, III)',
+        icon: '🏺',
+        isActive: true,
+        classes: {
+          6: [
+            { id: 'h6_1', name: 'Chapter 1: What, Where, How and When?' },
+            { id: 'h6_2', name: 'Chapter 2: From Hunting-Gathering to Growing Food' }
+          ]
+        }
+      },
+      Geography: {
+        title: 'Geography (The Earth: Our Habitat, Environment & Resources)',
+        icon: '🌍',
+        isActive: true,
+        classes: {
+          6: [{ id: 'g6_1', name: 'Chapter 1: The Earth in the Solar System' }]
+        }
+      },
+      Civics: {
+        title: 'Social and Political Life (I, II, III)',
+        icon: '🏛️',
+        isActive: true,
+        classes: {
+          6: [{ id: 'c6_1', name: 'Chapter 1: Understanding Diversity' }]
+        }
+      }
+    };
+
+    // State
+    let APP_DATA = JSON.parse(localStorage.getItem('ctet_admin_app_data') || JSON.stringify(DEFAULT_APP_DATA));
+    let questionsList = JSON.parse(localStorage.getItem('ctet_admin_questions') || '[]');
+    let notesList = JSON.parse(localStorage.getItem('ctet_admin_notes') || '[]');
+    let testTimersMap = JSON.parse(localStorage.getItem('ctet_admin_timers') || '{}');
+    let studentProfile = JSON.parse(localStorage.getItem('ctet_student_profile') || '{"name":"","email":"","mobile":"","photo":""}');
+    let completedTestsMap = JSON.parse(localStorage.getItem('ctet_completed_tests') || '{}');
+    let parsedTempQuestions = [];
+
+    const workspaceTitles = {
+      'tabAddQ': '➕ Upload Question (Set / PYQ / Chapter)',
+      'tabPdfParser': '⚡ Auto Parse CTET Questions',
+      'tabManageQ': '📋 Manage Questions Bank',
+      'tabProfileManagement': '👤 Student Live Profile & Scores',
+      'tabStudentRecords': '🎓 Student Score Cards',
+      'tabManageNotes': '📑 Manage Chapter PDF Notes',
+      'tabAddSubject': '📚 Manage Subjects',
+      'tabAddChapter': '📖 Manage Chapters'
+    };
+
+    let navHistory = ['hub'];
+
+    /* -------------------------------------------------------------
+       TWO-WAY CLOUD SYNC & REALTIME LISTENERS
+       ------------------------------------------------------------- */
+    async function syncAdminDataFromCloud() {
+      try {
+        const appRes = await fetch(FIREBASE_BASE_URL + '/app_data.json');
+        const appD = await appRes.json();
+        if (appD && Object.keys(appD).length > 0) {
+          APP_DATA = appD;
+          localStorage.setItem('ctet_admin_app_data', JSON.stringify(APP_DATA));
+        }
+
+        const qRes = await fetch(FIREBASE_BASE_URL + '/questions.json');
+        const qData = await qRes.json();
+        if (qData) {
+          questionsList = Array.isArray(qData) ? qData : Object.values(qData);
+          localStorage.setItem('ctet_admin_questions', JSON.stringify(questionsList));
+        }
+
+        const nRes = await fetch(FIREBASE_BASE_URL + '/notes.json');
+        const nData = await nRes.json();
+        if (nData) {
+          notesList = Array.isArray(nData) ? nData : Object.values(nData);
+          localStorage.setItem('ctet_admin_notes', JSON.stringify(notesList));
+        }
+
+        const tRes = await fetch(FIREBASE_BASE_URL + '/timers.json');
+        const tData = await tRes.json();
+        if (tData) {
+          testTimersMap = tData;
+          localStorage.setItem('ctet_admin_timers', JSON.stringify(testTimersMap));
+        }
+      } catch (e) {
+        console.warn('Admin core sync issue:', e);
+      }
+    }
+
+    async function syncStudentActivityFromCloud(notify) {
+      try {
+        const pRes = await fetch(FIREBASE_BASE_URL + '/student_profile.json');
+        const pData = await pRes.json();
+        if (pData && (pData.name || pData.email || pData.photo)) {
+          studentProfile = pData;
+          localStorage.setItem('ctet_student_profile', JSON.stringify(studentProfile));
+        }
+
+        const cRes = await fetch(FIREBASE_BASE_URL + '/completed_tests.json');
+        const cData = await cRes.json();
+        if (cData) {
+          completedTestsMap = cData;
+          localStorage.setItem('ctet_completed_tests', JSON.stringify(completedTestsMap));
+        }
+
+        updateStatsUI();
+        renderProfileManagement();
+        renderStudentRecords();
+
+        if (notify) {
+          showLiveAlert('Sync Complete', 'Student profile aur score cloud se sync ho gaye.');
+        }
+      } catch (err) {
+        console.warn('Student sync issue:', err);
+      }
+    }
+
+    async function refreshAllFromCloud(manual) {
+      document.getElementById('cloudStatusText').textContent = 'Syncing...';
+      await syncAdminDataFromCloud();
+      await syncStudentActivityFromCloud(false);
+      updateStatsUI();
+      updateSubjectDropdowns();
+      renderSubjectCards();
+      renderAllChaptersList();
+      renderQuestionsList();
+      renderNotesList();
+      document.getElementById('cloudStatusText').textContent = 'Cloud Connected (Two-Way Live)';
+      if (manual) showLiveAlert('Cloud Refresh', 'Sabhi data successfully update ho gaya!');
+    }
+
+    /* REALTIME EVENT SOURCE LISTENER */
+    function initRealtimeCloudListeners() {
+      try {
+        const testsEventSource = new EventSource(FIREBASE_BASE_URL + '/completed_tests.json');
+        testsEventSource.addEventListener('put', function(e) {
+          if (!e.data) return;
+          const payload = JSON.parse(e.data);
+          if (payload && payload.data) {
+            completedTestsMap = payload.path === '/' ? payload.data : Object.assign({}, completedTestsMap, payload.data);
+            localStorage.setItem('ctet_completed_tests', JSON.stringify(completedTestsMap));
+            updateStatsUI();
+            renderProfileManagement();
+            renderStudentRecords();
+            showLiveAlert('New Test Completed! 🎯', 'Student ne ek test submit kiya hai. Naya score live update ho gaya.');
+          }
+        });
+
+        const profileEventSource = new EventSource(FIREBASE_BASE_URL + '/student_profile.json');
+        profileEventSource.addEventListener('put', function(e) {
+          if (!e.data) return;
+          const payload = JSON.parse(e.data);
+          if (payload && payload.data) {
+            studentProfile = payload.path === '/' ? payload.data : Object.assign({}, studentProfile, payload.data);
+            localStorage.setItem('ctet_student_profile', JSON.stringify(studentProfile));
+            renderProfileManagement();
+            renderStudentRecords();
+            showLiveAlert('Profile Updated! 👤', 'Student ne app me profile details update ki hain.');
+          }
+        });
+      } catch (err) {
+        console.warn('Realtime SSE listener not supported or blocked:', err);
+      }
+    }
+
+    function showLiveAlert(title, message) {
+      const banner = document.getElementById('liveAlertBanner');
+      document.getElementById('liveAlertTitle').textContent = title;
+      document.getElementById('liveAlertMsg').textContent = message;
+      banner.classList.remove('hidden');
+      setTimeout(function() {
+        banner.classList.add('hidden');
+      }, 5000);
+    }
+
+    function closeLiveAlert() {
+      document.getElementById('liveAlertBanner').classList.add('hidden');
+    }
+
+    /* CLOUD SAVE ROUTINES (ADMIN -> FIREBASE) */
+    async function saveAppDataToCloud() {
+      try { localStorage.setItem('ctet_admin_app_data', JSON.stringify(APP_DATA)); } catch(e) {}
+      try {
+        await fetch(FIREBASE_BASE_URL + '/app_data.json', {
+          method: 'PUT',
+          body: JSON.stringify(APP_DATA)
+        });
+      } catch(e) {}
+    }
+
+    async function saveQuestionsToCloud() {
+      try { localStorage.setItem('ctet_admin_questions', JSON.stringify(questionsList)); } catch(e) {}
+      updateStatsUI();
+      try {
+        await fetch(FIREBASE_BASE_URL + '/questions.json', {
+          method: 'PUT',
+          body: JSON.stringify(questionsList)
+        });
+      } catch(err) {}
+    }
+
+    async function saveNotesToCloud() {
+      try { localStorage.setItem('ctet_admin_notes', JSON.stringify(notesList)); } catch(e) {}
+      updateStatsUI();
+      try {
+        await fetch(FIREBASE_BASE_URL + '/notes.json', {
+          method: 'PUT',
+          body: JSON.stringify(notesList)
+        });
+      } catch(err) {}
+    }
+
+    async function saveTimersToCloud() {
+      try { localStorage.setItem('ctet_admin_timers', JSON.stringify(testTimersMap)); } catch(e) {}
+      try {
+        await fetch(FIREBASE_BASE_URL + '/timers.json', {
+          method: 'PUT',
+          body: JSON.stringify(testTimersMap)
+        });
+      } catch(err) {}
+    }
+
+    function updateStatsUI() {
+      const statQ = document.getElementById('statQuesCount');
+      const hubQ = document.getElementById('hubQCount');
+      const statN = document.getElementById('statNotesCount');
+      const statSub = document.getElementById('statSubjectCount');
+      const statTests = document.getElementById('statCompletedTestsCount');
+
+      const activeKeys = Object.keys(APP_DATA).filter(function(k) { return APP_DATA[k].isActive !== false; });
+      if (statSub) statSub.textContent = activeKeys.length;
+      if (statQ) statQ.textContent = questionsList.length;
+      if (hubQ) hubQ.textContent = questionsList.length;
+      if (statN) statN.textContent = notesList.length;
+      if (statTests) statTests.textContent = Object.keys(completedTestsMap || {}).length;
+    }
+
+    function openWorkspace(tabId, pushHistory) {
+      if (pushHistory === undefined) pushHistory = true;
+      const hub = document.getElementById('moduleHub');
+      const header = document.getElementById('workspaceHeader');
+      const title = document.getElementById('activeWorkspaceTitle');
+
+      if (hub) hub.classList.add('hidden');
+      if (header) header.classList.remove('hidden');
+      if (title) title.textContent = workspaceTitles[tabId] || '';
+
+      const allTabs = ['tabAddQ', 'tabPdfParser', 'tabManageQ', 'tabProfileManagement', 'tabStudentRecords', 'tabManageNotes', 'tabAddSubject', 'tabAddChapter'];
+      allTabs.forEach(function(t) {
+        const el = document.getElementById(t);
+        if (el) el.classList.toggle('hidden', t !== tabId);
+      });
+
+      if (pushHistory && navHistory[navHistory.length - 1] !== tabId) {
+        navHistory.push(tabId);
+        window.history.pushState({ tabId: tabId }, '');
+      }
+
+      if (tabId === 'tabStudentRecords') renderStudentRecords();
+      if (tabId === 'tabProfileManagement') renderProfileManagement();
+      if (tabId === 'tabManageNotes') renderNotesList();
+      if (tabId === 'tabManageQ') renderQuestionsList();
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openModuleHub(pushHistory) {
+      if (pushHistory === undefined) pushHistory = true;
+      const hub = document.getElementById('moduleHub');
+      const header = document.getElementById('workspaceHeader');
+
+      if (hub) hub.classList.remove('hidden');
+      if (header) header.classList.add('hidden');
+
+      const allTabs = ['tabAddQ', 'tabPdfParser', 'tabManageQ', 'tabProfileManagement', 'tabStudentRecords', 'tabManageNotes', 'tabAddSubject', 'tabAddChapter'];
+      allTabs.forEach(function(t) {
+        const el = document.getElementById(t);
+        if (el) el.classList.add('hidden');
+      });
+
+      if (pushHistory) {
+        navHistory = ['hub'];
+        window.history.pushState({ tabId: 'hub' }, '');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    window.onpopstate = function(e) {
+      if (e.state && e.state.tabId && e.state.tabId !== 'hub') {
+        openWorkspace(e.state.tabId, false);
+      } else {
+        openModuleHub(false);
+      }
+    };
+
+    function extractChapterNum(name) {
+      if (!name) return 9999;
+      const m = name.match(/(?:Chapter|पाठ|Lesson|अध्याय)\s*(\d+)/i) || name.match(/\d+/);
+      return m ? parseInt(m[1] || m[0], 10) : 9999;
+    }
+
+    function toggleDestinationFields() {
+      const type = document.getElementById('qDestinationType').value;
+      document.getElementById('fieldSetSelect').classList.toggle('hidden', type !== 'set');
+      document.getElementById('fieldPyqSelect').classList.toggle('hidden', type !== 'pyq');
+      document.getElementById('fieldChapterGroup').classList.toggle('hidden', type !== 'chapter');
+      if (type === 'chapter') updateUploadClassDropdown();
+    }
+
+    function toggleParseDest() {
+      const type = document.getElementById('parseDestinationType').value;
+      document.getElementById('parseMockBox').classList.toggle('hidden', type !== 'set');
+      document.getElementById('parsePyqBox').classList.toggle('hidden', type !== 'pyq');
+      document.getElementById('parseChapterGroup').classList.toggle('hidden', type !== 'chapter');
+      if (type === 'chapter') updateParseClassDropdown();
+    }
+
+    function updateSubjectDropdowns() {
+      const allKeys = Object.keys(APP_DATA);
+      const activeKeys = allKeys.filter(function(k) { return APP_DATA[k].isActive !== false; });
+      const activeOptsHtml = activeKeys.map(function(k) {
+        return '<option value="' + k + '">' + (APP_DATA[k].icon || '📚') + ' ' + APP_DATA[k].title + '</option>';
+      }).join('');
+
+      ['chapSubjectSelect', 'noteSubject', 'qSubject', 'parseSubject'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = activeOptsHtml;
+      });
+
+      const filterChapSub = document.getElementById('filterChapSubject');
+      if (filterChapSub) filterChapSub.innerHTML = '<option value="all">All Subjects</option>' + activeOptsHtml;
+
+      updateNoteClassDropdown();
+      updateUploadClassDropdown();
+      updateParseClassDropdown();
+    }
+
+    /* CLEAN DROPDOWNS: No Auto / Ghost Classes */
+    function updateNoteClassDropdown() {
+      const subEl = document.getElementById('noteSubject');
+      const clsEl = document.getElementById('noteClass');
+      if (!subEl || !clsEl) return;
+
+      const sub = subEl.value;
+      const subData = APP_DATA[sub] || {};
+      const classKeys = Object.keys(subData.classes || {}).sort(function(a, b) {
+        const numA = parseInt(a), numB = parseInt(b);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b);
+      });
+
+      if (classKeys.length === 0) {
+        clsEl.innerHTML = '<option value="">-- No Class (Pehle Class Add Karein) --</option>';
+      } else {
+        clsEl.innerHTML = classKeys.map(function(c) {
+          return '<option value="' + c + '">' + (isNaN(c) ? c : 'Class ' + c) + '</option>';
+        }).join('');
+      }
+
+      updateNoteChapterDropdown();
+    }
+
+    function updateNoteChapterDropdown() {
+      const subEl = document.getElementById('noteSubject');
+      const clsEl = document.getElementById('noteClass');
+      const chDropdown = document.getElementById('noteChapter');
+      if (!subEl || !clsEl || !chDropdown) return;
+
+      const sub = subEl.value;
+      const cls = clsEl.value;
+      if (!cls) {
+        chDropdown.innerHTML = '<option value="">-- No Chapter Available --</option>';
+        return;
+      }
+
+      let list = (APP_DATA[sub] && APP_DATA[sub].classes && APP_DATA[sub].classes[cls]) ? APP_DATA[sub].classes[cls].slice() : [];
+      list.sort(function(a, b) { return extractChapterNum(a.name) - extractChapterNum(b.name); });
+      
+      if (list.length === 0) {
+        chDropdown.innerHTML = '<option value="">-- Pehle Chapter Add Karein --</option>';
+      } else {
+        chDropdown.innerHTML = list.map(function(c) {
+          return '<option value="' + c.id + '" data-name="' + c.name + '">' + c.name + '</option>';
+        }).join('');
+      }
+    }
+
+    function updateUploadClassDropdown() {
+      const subEl = document.getElementById('qSubject');
+      const clsEl = document.getElementById('qClass');
+      if (!subEl || !clsEl) return;
+
+      const sub = subEl.value;
+      const subData = APP_DATA[sub] || {};
+      const classKeys = Object.keys(subData.classes || {}).sort(function(a, b) {
+        const numA = parseInt(a), numB = parseInt(b);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b);
+      });
+
+      if (classKeys.length === 0) {
+        clsEl.innerHTML = '<option value="">-- No Class (Pehle Class Add Karein) --</option>';
+      } else {
+        clsEl.innerHTML = classKeys.map(function(c) {
+          return '<option value="' + c + '">' + (isNaN(c) ? c : 'Class ' + c) + '</option>';
+        }).join('');
+      }
+
+      updateUploadChapterDropdown();
+    }
+
+    function updateUploadChapterDropdown() {
+      const subEl = document.getElementById('qSubject');
+      const clsEl = document.getElementById('qClass');
+      const chDropdown = document.getElementById('qChapter');
+      if (!subEl || !clsEl || !chDropdown) return;
+
+      const sub = subEl.value;
+      const cls = clsEl.value;
+      if (!cls) {
+        chDropdown.innerHTML = '<option value="">-- No Chapter Available --</option>';
+        return;
+      }
+
+      let list = (APP_DATA[sub] && APP_DATA[sub].classes && APP_DATA[sub].classes[cls]) ? APP_DATA[sub].classes[cls].slice() : [];
+      list.sort(function(a, b) { return extractChapterNum(a.name) - extractChapterNum(b.name); });
+
+      if (list.length === 0) {
+        chDropdown.innerHTML = '<option value="">-- Pehle Chapter Add Karein --</option>';
+      } else {
+        chDropdown.innerHTML = list.map(function(c) {
+          return '<option value="' + c.id + '" data-name="' + c.name + '">' + c.name + '</option>';
+        }).join('');
+      }
+    }
+
+    function updateParseClassDropdown() {
+      const subEl = document.getElementById('parseSubject');
+      const clsEl = document.getElementById('parseClass');
+      if (!subEl || !clsEl) return;
+
+      const sub = subEl.value;
+      const subData = APP_DATA[sub] || {};
+      const classKeys = Object.keys(subData.classes || {}).sort(function(a, b) {
+        const numA = parseInt(a), numB = parseInt(b);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b);
+      });
+
+      if (classKeys.length === 0) {
+        clsEl.innerHTML = '<option value="">-- No Class (Pehle Class Add Karein) --</option>';
+      } else {
+        clsEl.innerHTML = classKeys.map(function(c) {
+          return '<option value="' + c + '">' + (isNaN(c) ? c : 'Class ' + c) + '</option>';
+        }).join('');
+      }
+
+      updateParseChapterDropdown();
+    }
+
+    function updateParseChapterDropdown() {
+      const subEl = document.getElementById('parseSubject');
+      const clsEl = document.getElementById('parseClass');
+      const chDropdown = document.getElementById('parseChapter');
+      if (!subEl || !clsEl || !chDropdown) return;
+
+      const sub = subEl.value;
+      const cls = clsEl.value;
+      if (!cls) {
+        chDropdown.innerHTML = '<option value="">-- No Chapter Available --</option>';
+        return;
+      }
+
+      let list = (APP_DATA[sub] && APP_DATA[sub].classes && APP_DATA[sub].classes[cls]) ? APP_DATA[sub].classes[cls].slice() : [];
+      list.sort(function(a, b) { return extractChapterNum(a.name) - extractChapterNum(b.name); });
+
+      if (list.length === 0) {
+        chDropdown.innerHTML = '<option value="">-- Pehle Chapter Add Karein --</option>';
+      } else {
+        chDropdown.innerHTML = list.map(function(c) {
+          return '<option value="' + c.id + '" data-name="' + c.name + '">' + c.name + '</option>';
+        }).join('');
+      }
+    }
+
+    async function handleSaveNote(e) {
+      e.preventDefault();
+      const sub = document.getElementById('noteSubject').value;
+      const cls = document.getElementById('noteClass').value;
+      const chSelect = document.getElementById('noteChapter');
+      const chId = chSelect.value;
+
+      if (!cls || !chId) {
+        alert('Kripya pehle is subject me class aur chapter add karein!');
+        return;
+      }
+
+      const selectedOption = chSelect.options[chSelect.selectedIndex];
+      const autoTitle = selectedOption ? (selectedOption.getAttribute('data-name') || selectedOption.textContent) : 'Chapter Note';
+      let rawPdfUrl = document.getElementById('notePdfUrl').value.trim();
+
+      const driveMatch = rawPdfUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (driveMatch && driveMatch[1]) {
+        rawPdfUrl = 'https://drive.google.com/file/d/' + driveMatch[1] + '/preview';
+      }
+
+      notesList.unshift({
+        id: 'note_' + Date.now(),
+        subject: sub,
+        class: cls,
+        chapterId: chId,
+        title: autoTitle,
+        pdfUrl: rawPdfUrl,
+        date: new Date().toLocaleDateString('en-IN')
+      });
+
+      await saveNotesToCloud();
+      renderNotesList();
+      alert('PDF Note Cloud Database me live save ho gaya!');
+      document.getElementById('notePdfUrl').value = '';
+    }
+
+    function renderNotesList() {
+      const cont = document.getElementById('notesCardsList');
+      if (!cont) return;
+      if (notesList.length === 0) {
+        cont.innerHTML = '<div class="p-6 text-center text-xs text-slate-400">Abhi koi PDF notes add nahi hain.</div>';
+        return;
+      }
+
+      cont.innerHTML = notesList.map(function(n, i) {
+        return '<div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 text-xs">' +
+               '<div><div class="flex items-center gap-2 mb-1">' +
+               '<span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold">' + n.subject + '</span>' +
+               '<span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-semibold">' + (isNaN(n.class) ? n.class : 'Class ' + n.class) + '</span></div>' +
+               '<b class="text-slate-800 text-sm block">' + n.title + '</b>' +
+               '<span class="text-[10px] text-slate-500 font-mono">PDF: ' + n.pdfUrl + '</span></div>' +
+               '<button onclick="deleteNote(' + i + ')" class="px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-lg">Delete</button></div>';
+      }).join('');
+    }
+
+    async function deleteNote(index) {
+      if (confirm('Is PDF Note ko cloud database se delete karein?')) {
+        notesList.splice(index, 1);
+        await saveNotesToCloud();
+        renderNotesList();
+      }
+    }
+
+    async function handleSaveQuestion(e) {
+      e.preventDefault();
+      const destType = document.getElementById('qDestinationType').value;
+      const customMins = parseInt(document.getElementById('qCustomTimer').value) || 25;
+
+      let finalTargetType = 'set';
+      let finalMockSet = null;
+      let finalYear = null;
+      let finalSubject = 'SST';
+      let finalClassNum = '';
+      let finalChapterId = '';
+      let timerKey = '';
+
+      if (destType === 'set') {
+        finalTargetType = 'set';
+        finalMockSet = parseInt(document.getElementById('qMockSetNum').value);
+        timerKey = 'mockset_' + finalMockSet;
+      } else if (destType === 'pyq') {
+        finalTargetType = 'pyq';
+        finalYear = document.getElementById('qPyqYear').value;
+        timerKey = 'pyq_' + finalYear;
+      } else {
+        finalTargetType = 'chapter';
+        finalSubject = document.getElementById('qSubject').value;
+        finalClassNum = document.getElementById('qClass').value;
+        finalChapterId = document.getElementById('qChapter').value;
+
+        if (!finalClassNum || !finalChapterId) {
+          alert('Kripya pehle Class aur Chapter add karein!');
+          return;
+        }
+        timerKey = 'chapter_' + finalChapterId;
+      }
+
+      testTimersMap[timerKey] = customMins;
+      await saveTimersToCloud();
+
+      const qObj = {
+        id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        targetType: finalTargetType,
+        mockSet: finalMockSet,
+        year: finalYear,
+        subject: finalSubject,
+        class: finalClassNum,
+        chapterId: finalChapterId,
+        text: document.getElementById('qText').value.trim(),
+        options: [
+          document.getElementById('qOptA').value.trim(),
+          document.getElementById('qOptB').value.trim(),
+          document.getElementById('qOptC').value.trim(),
+          document.getElementById('qOptD').value.trim()
+        ],
+        correctIndex: parseInt(document.getElementById('qCorrect').value),
+        explanation: document.getElementById('qExplanation').value.trim() || 'NCERT Textbook Reference.',
+        order: questionsList.length + 1
+      };
+
+      questionsList.push(qObj);
+      await saveQuestionsToCloud();
+      renderQuestionsList();
+
+      alert('Question safalta-purvak Cloud me save ho gaya!');
+      document.getElementById('qText').value = '';
+      document.getElementById('qOptA').value = '';
+      document.getElementById('qOptB').value = '';
+      document.getElementById('qOptC').value = '';
+      document.getElementById('qOptD').value = '';
+      document.getElementById('qExplanation').value = '';
+    }
+
+    function handleParseRawText() {
+      const text = document.getElementById('rawPdfTextInput').value.trim();
+      if (!text) return alert('Kripya questions ka raw text paste karein.');
+
+      const destType = document.getElementById('parseDestinationType').value;
+      const customMins = parseInt(document.getElementById('parseTimerMinutes').value) || 25;
+      let finalTargetType = 'set';
+      let finalMockSet = null;
+      let finalYear = null;
+      let finalSubject = 'SST';
+      let finalClassNum = '';
+      let finalChapterId = '';
+      let timerKey = '';
+
+      if (destType === 'set') {
+        finalTargetType = 'set';
+        finalMockSet = parseInt(document.getElementById('parseMockSetNum').value);
+        timerKey = 'mockset_' + finalMockSet;
+      } else if (destType === 'pyq') {
+        finalTargetType = 'pyq';
+        finalYear = document.getElementById('parsePyqYear').value;
+        timerKey = 'pyq_' + finalYear;
+      } else {
+        finalTargetType = 'chapter';
+        finalSubject = document.getElementById('parseSubject').value;
+        finalClassNum = document.getElementById('parseClass').value;
+        finalChapterId = document.getElementById('parseChapter').value;
+
+        if (!finalClassNum || !finalChapterId) {
+          alert('Kripya pehle Class aur Chapter add karein!');
+          return;
+        }
+        timerKey = 'chapter_' + finalChapterId;
+      }
+
+      testTimersMap[timerKey] = customMins;
+      saveTimersToCloud();
+
+      const blocks = text.split(/(?=(?:^|\n)\s*(?:\d+[\.\)]|Q\d+[\.\:\)]|Question\s*\d+))\s*/i).filter(function(b) {
+        return b.trim().length > 10;
+      });
+      parsedTempQuestions = [];
+
+      blocks.forEach(function(block, bIdx) {
+        try {
+          const optMatches = Array.from(block.matchAll(/(?:(?:\(([A-D])\)|([A-D])[\.\)])\s*)([^\n]+)/gi));
+          let correctIdx = 0;
+          const ansMatch = block.match(/(?:Ans|Answer|उत्तर)\s*[:\-]?\s*\(?([A-D])/i);
+          if (ansMatch) {
+            const letter = ansMatch[1].toUpperCase();
+            correctIdx = ['A', 'B', 'C', 'D'].indexOf(letter);
+            if (correctIdx === -1) correctIdx = 0;
+          }
+
+          let expText = 'NCERT Textbook Reference.';
+          const expMatch = block.match(/(?:Exp|Explanation|व्याख्या)\s*[:\-]?\s*([^\n]+(?:\n[^\n]+)*)/i);
+          if (expMatch) expText = expMatch[1].trim();
+
+          if (optMatches.length >= 4) {
+            const firstOptIndex = block.indexOf(optMatches[0][0]);
+            let qBody = block.substring(0, firstOptIndex).trim();
+            qBody = qBody.replace(/^\s*(?:\d+[\.\)]|Q\d+[\.\:\)]|Question\s*\d+[\.\:\)]?)\s*/i, '');
+
+            parsedTempQuestions.push({
+              id: 'q_' + Date.now() + '_' + bIdx,
+              targetType: finalTargetType,
+              mockSet: finalMockSet,
+              year: finalYear,
+              subject: finalSubject,
+              class: finalClassNum,
+              chapterId: finalChapterId,
+              text: qBody,
+              options: [
+                optMatches[0][3].trim(),
+                optMatches[1][3].trim(),
+                optMatches[2][3].trim(),
+                optMatches[3][3].trim()
+              ],
+              correctIndex: correctIdx,
+              explanation: expText,
+              order: questionsList.length + bIdx + 1
+            });
+          }
+        } catch(e) {}
+      });
+
+      document.getElementById('parsedSummaryText').textContent = '✓ ' + parsedTempQuestions.length + ' Questions detected!';
+      document.getElementById('parsedPreviewSection').classList.remove('hidden');
+      document.getElementById('parsedCardsContainer').innerHTML = parsedTempQuestions.map(function(q, i) {
+        return '<div class="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-1">' +
+               '<span class="font-bold text-indigo-700">Q' + (i + 1) + '</span>' +
+               '<p class="font-semibold text-slate-800 render-multiline">' + q.text + '</p>' +
+               '<div class="grid grid-cols-2 gap-1 text-[11px] text-slate-600">' +
+               '<div>(A) ' + q.options[0] + '</div><div>(B) ' + q.options[1] + '</div>' +
+               '<div>(C) ' + q.options[2] + '</div><div>(D) ' + q.options[3] + '</div></div>' +
+               '<span class="text-emerald-700 font-bold block text-[11px]">Correct: (' + ['A','B','C','D'][q.correctIndex] + ')</span></div>';
+      }).join('');
+    }
+
+    async function uploadParsedQuestions() {
+      questionsList = questionsList.concat(parsedTempQuestions);
+      await saveQuestionsToCloud();
+      renderQuestionsList();
+      alert(parsedTempQuestions.length + ' Questions cloud par save ho gaye!');
+      parsedTempQuestions = [];
+      document.getElementById('rawPdfTextInput').value = '';
+      document.getElementById('parsedPreviewSection').classList.add('hidden');
+      document.getElementById('parsedSummaryText').textContent = '';
+    }
+
+    function renderQuestionsList() {
+      const searchEl = document.getElementById('searchQText');
+      const search = (searchEl ? searchEl.value : '').toLowerCase();
+      const targetGroup = document.getElementById('filterTargetGroup') ? document.getElementById('filterTargetGroup').value : 'all';
+
+      const filtered = questionsList.filter(function(q) {
+        const matchSearch = (q.text || '').toLowerCase().indexOf(search) !== -1;
+        const matchTarget = targetGroup === 'all' || q.targetType === targetGroup;
+        return matchSearch && matchTarget;
+      });
+
+      const cont = document.getElementById('questionsContainer');
+      if (!cont) return;
+
+      if (filtered.length === 0) {
+        cont.innerHTML = '<div class="p-8 text-center text-slate-400 text-xs">Koi questions nahi mile.</div>';
+        return;
+      }
+
+      cont.innerHTML = filtered.map(function(q, idx) {
+        let tagBadge = '';
+        if (q.targetType === 'set') {
+          tagBadge = '<span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold text-[10px]">Mock Set ' + q.mockSet + '</span>';
+        } else if (q.targetType === 'pyq') {
+          tagBadge = '<span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">PYQ ' + q.year + '</span>';
+        } else if (q.targetType === 'chapter') {
+          tagBadge = '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">' + q.subject + ' • Class ' + q.class + '</span>';
+        }
+
+        return '<div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-2">' +
+               '<div class="flex items-center justify-between">' +
+               tagBadge +
+               '<button onclick="deleteQuestion(' + idx + ')" class="text-rose-600 font-bold hover:underline">Delete</button></div>' +
+               '<p class="font-bold text-slate-800 render-multiline">' + q.text + '</p>' +
+               '<div class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-600">' +
+               '<div>(A) ' + q.options[0] + '</div><div>(B) ' + q.options[1] + '</div>' +
+               '<div>(C) ' + q.options[2] + '</div><div>(D) ' + q.options[3] + '</div></div></div>';
+      }).join('');
+    }
+
+    /* DELETION WITH DYNAMIC RESULT CLEANUP */
+    async function deleteQuestion(idx) {
+      if (!confirm('Kya aap is prashn ko Cloud se hatana chahte hain?')) return;
+      const deletedQ = questionsList[idx];
+      questionsList.splice(idx, 1);
+      await saveQuestionsToCloud();
+
+      // Clean up orphaned result snapshot if test pool becomes 0
+      let testKey = '';
+      if (deletedQ.targetType === 'set') testKey = 'mockset_' + deletedQ.mockSet;
+      else if (deletedQ.targetType === 'pyq') testKey = 'pyq_' + deletedQ.year;
+      else if (deletedQ.targetType === 'chapter') testKey = 'chapter_' + deletedQ.chapterId;
+
+      if (testKey && completedTestsMap[testKey]) {
+        const remaining = questionsList.filter(function(q) {
+          if (deletedQ.targetType === 'set') return Number(q.mockSet) === Number(deletedQ.mockSet);
+          if (deletedQ.targetType === 'pyq') return String(q.year) === String(deletedQ.year);
+          return q.chapterId === deletedQ.chapterId;
+        }).length;
+
+        if (remaining === 0) {
+          delete completedTestsMap[testKey];
+          try {
+            await fetch(FIREBASE_BASE_URL + '/completed_tests/' + testKey + '.json', { method: 'DELETE' });
+          } catch(e) {}
+          localStorage.setItem('ctet_completed_tests', JSON.stringify(completedTestsMap));
+          renderStudentRecords();
+          renderProfileManagement();
+        } else if (completedTestsMap[testKey].total !== remaining) {
+          completedTestsMap[testKey].total = remaining;
+          if (completedTestsMap[testKey].score > remaining) completedTestsMap[testKey].score = remaining;
+          completedTestsMap[testKey].accuracy = Math.round((completedTestsMap[testKey].score / remaining) * 100);
+          try {
+            await fetch(FIREBASE_BASE_URL + '/completed_tests/' + testKey + '.json', {
+              method: 'PUT',
+              body: JSON.stringify(completedTestsMap[testKey])
+            });
+          } catch(e) {}
+          localStorage.setItem('ctet_completed_tests', JSON.stringify(completedTestsMap));
+          renderStudentRecords();
+          renderProfileManagement();
+        }
+      }
+
+      renderQuestionsList();
+    }
+
+    async function handleDeleteAllQuestions() {
+      if (confirm('Khatra: Saare prashn Cloud se delete ho jayenge. Confirm karein?')) {
+        questionsList = [];
+        completedTestsMap = {};
+        await saveQuestionsToCloud();
+        try {
+          await fetch(FIREBASE_BASE_URL + '/completed_tests.json', { method: 'DELETE' });
+        } catch(e) {}
+        localStorage.removeItem('ctet_completed_tests');
+        renderStudentRecords();
+        renderProfileManagement();
+        renderQuestionsList();
+      }
+    }
+
+    /* RENDER STUDENT PROFILE & LIVE SCORES */
+    function renderProfileManagement() {
+      const p = studentProfile || {};
+      const nameEl = document.getElementById('adminStudentName');
+      const emailEl = document.getElementById('adminStudentEmail');
+      const mobileEl = document.getElementById('adminStudentMobile');
+      const syncTag = document.getElementById('adminProfileSyncTag');
+      const lastUpEl = document.getElementById('adminProfileLastUpdated');
+
+      if (p.name) {
+        nameEl.textContent = p.name;
+        emailEl.textContent = 'Email: ' + (p.email || '—');
+        mobileEl.textContent = 'Mobile: ' + (p.mobile || '—');
+        syncTag.textContent = 'Live Cloud Active';
+        syncTag.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800';
+        lastUpEl.textContent = 'Last Synced: ' + (p.updatedAt ? new Date(p.updatedAt).toLocaleString('en-IN') : 'Just Now');
+      } else {
+        nameEl.textContent = 'No Student Profile Yet';
+        emailEl.textContent = 'Email: —';
+        mobileEl.textContent = 'Mobile: —';
+        syncTag.textContent = 'Waiting for App';
+        syncTag.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-600';
+      }
+
+      const imgEl = document.getElementById('adminProfileImg');
+      const placeholderEl = document.getElementById('adminProfileImgPlaceholder');
+      if (p.photo) {
+        imgEl.src = p.photo;
+        imgEl.classList.remove('hidden');
+        placeholderEl.classList.add('hidden');
+      } else {
+        imgEl.classList.add('hidden');
+        placeholderEl.classList.remove('hidden');
+        placeholderEl.textContent = p.name ? p.name.charAt(0).toUpperCase() : '👤';
+      }
+
+      const setsCont = document.getElementById('adminSetsHistoryList');
+      const pyqCont = document.getElementById('adminPyqHistoryList');
+      const chapCont = document.getElementById('adminChapterHistoryList');
+
+      let setsHtml = '', pyqHtml = '', chapHtml = '';
+
+      Object.keys(completedTestsMap || {}).forEach(function(k) {
+        const item = completedTestsMap[k];
+        const row = '<div class="p-2 bg-white rounded-lg border border-slate-200 flex justify-between">' +
+                    '<span class="font-semibold truncate max-w-[130px]">' + (item.testTitle || k) + '</span>' +
+                    '<strong class="text-indigo-700">' + item.score + '/' + item.total + ' (' + item.accuracy + '%)</strong></div>';
+
+        if (k.indexOf('mockset_') === 0) setsHtml += row;
+        else if (k.indexOf('pyq_') === 0) pyqHtml += row;
+        else chapHtml += row;
+      });
+
+      setsCont.innerHTML = setsHtml || '<div class="text-slate-400">No mock sets taken.</div>';
+      pyqCont.innerHTML = pyqHtml || '<div class="text-slate-400">No PYQ taken.</div>';
+      chapCont.innerHTML = chapHtml || '<div class="text-slate-400">No chapter tests taken.</div>';
+    }
+
+    function renderStudentRecords() {
+      const cont = document.getElementById('studentRecordsContainer');
+      if (!cont) return;
+
+      const testKeys = Object.keys(completedTestsMap || {});
+      if (testKeys.length === 0) {
+        cont.innerHTML = '<div class="p-8 text-center text-slate-400 text-xs">Student ne abhi tak koi test submit nahi kiya hai. App me test submit hote hi yahan dikhega.</div>';
+        return;
+      }
+
+      cont.innerHTML = testKeys.map(function(k) {
+        const item = completedTestsMap[k];
+        const title = item.testTitle || k.toUpperCase();
+
+        return '<div class="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 text-xs">' +
+               '<div><b class="text-xs text-indigo-900 block">' + title + '</b>' +
+               '<div class="flex items-center gap-3 mt-1 text-slate-600 font-medium">' +
+               '<span>Score: <strong>' + item.score + ' / ' + item.total + '</strong></span>' +
+               '<span>Accuracy: <strong class="text-emerald-700 font-bold">' + item.accuracy + '%</strong></span></div></div>' +
+               '<button onclick="downloadCertifiedScoreCard(\'' + k + '\')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow transition flex items-center gap-1.5">' +
+               '<span>📥</span> <span>Print / Download Score Card</span></button></div>';
+      }).join('');
+    }
+
+    function downloadCertifiedScoreCard(testKey) {
+      const p = studentProfile || {};
+      const record = (completedTestsMap && completedTestsMap[testKey]) ? completedTestsMap[testKey] : {};
+
+      document.getElementById('printCardName').textContent = p.name || 'Student Candidate';
+      document.getElementById('printCardEmail').textContent = p.email || 'N/A';
+      document.getElementById('printCardMobile').textContent = p.mobile || 'N/A';
+      document.getElementById('printCardTestTitle').textContent = record.testTitle || testKey;
+      document.getElementById('printCardDate').textContent = record.timestamp ? new Date(record.timestamp).toLocaleString('en-IN') : new Date().toLocaleString('en-IN');
+      document.getElementById('printCardTotal').textContent = record.total || 0;
+      document.getElementById('printCardCorrect').textContent = record.score || 0;
+      document.getElementById('printCardWrong').textContent = Math.max(0, (record.total || 0) - (record.score || 0));
+      document.getElementById('printCardAcc').textContent = (record.accuracy || 0) + '%';
+      document.getElementById('printCardId').textContent = Math.floor(1000 + Math.random() * 9000);
+
+      const photoEl = document.getElementById('printCardPhoto');
+      const fallbackEl = document.getElementById('printCardPhotoFallback');
+      if (p.photo) {
+        photoEl.src = p.photo;
+        photoEl.classList.remove('hidden');
+        fallbackEl.classList.add('hidden');
+      } else {
+        photoEl.classList.add('hidden');
+        fallbackEl.classList.remove('hidden');
+      }
+
+      let setAttempts = 0, pyqAttempts = 0, chapAttempts = 0;
+      Object.keys(completedTestsMap || {}).forEach(function(k) {
+        if (k.indexOf('mockset_') === 0) setAttempts++;
+        else if (k.indexOf('pyq_') === 0) pyqAttempts++;
+        else chapAttempts++;
+      });
+
+      document.getElementById('printCardSetScore').textContent = 'Completed: ' + setAttempts;
+      document.getElementById('printCardPyqScore').textContent = 'Completed: ' + pyqAttempts;
+      document.getElementById('printCardChapterScore').textContent = 'Completed: ' + chapAttempts;
+
+      window.print();
+    }
+
+    function renderSubjectCards() {
+      const cont = document.getElementById('subjectCardsList');
+      if (!cont) return;
+      cont.innerHTML = Object.entries(APP_DATA).map(function(entry) {
+        const key = entry[0];
+        const data = entry[1];
+        const isActive = data.isActive !== false;
+        return '<div class="p-4 rounded-xl border ' + (isActive ? 'border-slate-200 bg-slate-50' : 'border-amber-200 bg-amber-50/40') + ' flex flex-col justify-between gap-3">' +
+               '<div class="flex items-start justify-between gap-2">' +
+               '<div class="flex items-center gap-2"><span class="text-2xl">' + (data.icon || '📚') + '</span>' +
+               '<div><b class="text-xs text-slate-800 block">' + data.title + '</b>' +
+               '<span class="text-[10px] text-slate-400">Key: ' + key + '</span></div></div>' +
+               '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full ' + (isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600') + '">' +
+               (isActive ? 'Active' : 'Deactivated') + '</span></div>' +
+               '<div class="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">' +
+               '<button onclick="toggleSubjectActive(\'' + key + '\', ' + !isActive + ')" class="px-3 py-1 text-xs font-bold rounded-lg border transition ' +
+               (isActive ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-emerald-600 text-white') + '">' +
+               (isActive ? 'Deactivate' : 'Activate') + '</button>' +
+               '<button onclick="handleDeleteSubject(\'' + key + '\')" class="px-2.5 py-1 text-xs font-bold rounded-lg text-rose-600 hover:bg-rose-100 border border-rose-200">Delete</button></div></div>';
+      }).join('');
+    }
+
+    async function toggleSubjectActive(key, activate) {
+      if (APP_DATA[key]) {
+        APP_DATA[key].isActive = activate;
+        await saveAppDataToCloud();
+        updateSubjectDropdowns();
+        renderSubjectCards();
+      }
+    }
+
+    async function handleDeleteSubject(key) {
+      if (confirm('Subject "' + key + '" ko delete karein?')) {
+        delete APP_DATA[key];
+        await saveAppDataToCloud();
+        updateSubjectDropdowns();
+        renderSubjectCards();
+        renderAllChaptersList();
+      }
+    }
+
+    async function handleSaveSubject(e) {
+      e.preventDefault();
+      const key = document.getElementById('subKeyInput').value.trim().replace(/\s+/g, '_');
+      const title = document.getElementById('subTitleInput').value.trim();
+      const icon = document.getElementById('subIconInput').value.trim() || '📚';
+      if (!key || !title) return;
+
+      // Naya subject banega with completely empty classes object
+      APP_DATA[key] = { title: title, icon: icon, isActive: true, classes: {} };
+      await saveAppDataToCloud();
+      updateSubjectDropdowns();
+      renderSubjectCards();
+      alert('Subject added to Cloud Database! Ab aap Manage Chapters se isme Class aur Chapter jod sakte hain.');
+      document.getElementById('subKeyInput').value = '';
+      document.getElementById('subTitleInput').value = '';
+    }
+
+    function renderAllChaptersList() {
+      const cont = document.getElementById('allChaptersList');
+      if (!cont) return;
+      const filterSub = document.getElementById('filterChapSubject') ? document.getElementById('filterChapSubject').value : 'all';
+
+      let totalCh = 0;
+      let html = '';
+
+      Object.entries(APP_DATA).forEach(function(entry) {
+        const subKey = entry[0];
+        const subData = entry[1];
+        if (filterSub !== 'all' && subKey !== filterSub) return;
+        const classList = Object.keys(subData.classes || {});
+
+        classList.forEach(function(cls) {
+          let list = (subData.classes && subData.classes[cls]) ? subData.classes[cls].slice() : [];
+          totalCh += list.length;
+          list.sort(function(a, b) { return extractChapterNum(a.name) - extractChapterNum(b.name); });
+
+          list.forEach(function(ch) {
+            const qCount = questionsList.filter(function(q) { return q.chapterId === ch.id; }).length;
+            html += '<div class="p-3 rounded-xl border border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 text-xs">' +
+                    '<div class="flex-1 min-w-[240px]">' +
+                    '<div class="flex items-center gap-2 mb-0.5">' +
+                    '<span class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold">' + subKey + '</span>' +
+                    '<span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-semibold">' + (isNaN(cls) ? cls : 'Class ' + cls) + '</span>' +
+                    '<span class="text-[11px] font-bold text-emerald-700">' + qCount + ' Questions</span></div>' +
+                    '<b class="text-slate-800 text-sm block mt-1">' + ch.name + '</b></div>' +
+                    '<button onclick="handleDeleteChapter(\'' + ch.id + '\', \'' + subKey + '\', \'' + cls + '\')" class="px-2.5 py-1.5 bg-rose-50 text-rose-700 font-bold rounded-lg border border-rose-200">Delete</button></div>';
+          });
+        });
+      });
+
+      const statCh = document.getElementById('statChapterCount');
+      if (statCh) statCh.textContent = totalCh;
+      cont.innerHTML = html || '<div class="p-6 text-center text-xs text-slate-400">Koi chapters nahi mile.</div>';
+    }
+
+    async function handleDeleteChapter(chId, subKey, cls) {
+      if (confirm('Is chapter ko delete karein?')) {
+        if (APP_DATA[subKey] && APP_DATA[subKey].classes && APP_DATA[subKey].classes[cls]) {
+          APP_DATA[subKey].classes[cls] = APP_DATA[subKey].classes[cls].filter(function(c) { return c.id !== chId; });
+          
+          // Agar us class ke saare chapter delete ho gaye hain to class key bhi remove karein
+          if (APP_DATA[subKey].classes[cls].length === 0) {
+            delete APP_DATA[subKey].classes[cls];
+          }
+
+          await saveAppDataToCloud();
+          renderAllChaptersList();
+          updateSubjectDropdowns();
+        }
+      }
+    }
+
+    async function handleSaveChapter(e) {
+      e.preventDefault();
+      const sub = document.getElementById('chapSubjectSelect').value;
+      const cls = document.getElementById('chapClassInput').value.trim();
+      const name = document.getElementById('chapNameInput').value.trim();
+
+      if (!sub || !cls || !name) {
+        alert('Sabhi fields bharna anivarya hai.');
+        return;
+      }
+
+      const newId = 'custom_' + sub.toLowerCase() + '_' + cls.toLowerCase().replace(/\s+/g,'_') + '_' + Date.now().toString().slice(-4);
+
+      if (!APP_DATA[sub].classes) APP_DATA[sub].classes = {};
+      if (!APP_DATA[sub].classes[cls]) APP_DATA[sub].classes[cls] = [];
+
+      APP_DATA[sub].classes[cls].push({ id: newId, name: name });
+      await saveAppDataToCloud();
+      renderAllChaptersList();
+      updateSubjectDropdowns();
+      alert('Chapter aur Class safalta-purvak add ho gaye!');
+      document.getElementById('chapNameInput').value = '';
+    }
+
+    window.onload = async function() {
+      try {
+        updateStatsUI();
+        updateSubjectDropdowns();
+        renderSubjectCards();
+        renderAllChaptersList();
+        renderNotesList();
+        renderQuestionsList();
+        renderProfileManagement();
+
+        await refreshAllFromCloud(false);
+        initRealtimeCloudListeners();
+      } catch(err) {
+        console.error("Init Error:", err);
+      }
+    };
+  </script>
+</body>
+</html>
